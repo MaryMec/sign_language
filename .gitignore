@@ -1,0 +1,16 @@
+﻿# Gradle files
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.DS_Store
+*.apk
+*.aar
+captures/
+.externalNativeBuild/
+# Android Studio
+*.log
+navigation/
+.kotlin/
+*.hprof
