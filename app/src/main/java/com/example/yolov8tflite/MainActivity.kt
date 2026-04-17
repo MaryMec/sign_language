@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -34,6 +35,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
 
     private lateinit var cameraExecutor: ExecutorService
 
+    private var sentenceHoldWord: String? = null
+    private var sentenceHoldStartMs: Long = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -41,6 +45,35 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
 
         detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this)
         detector.setup()
+
+        // Start of erase button feature
+        binding.eraseButton.setOnClickListener {
+            val currentSentence = binding.sentancetxt.text.toString()
+
+            if (currentSentence.isEmpty()) {
+                android.widget.Toast.makeText(
+                    this,
+                    "Nothing to delete",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                val words = currentSentence.trim().split(" ")
+                val newSentence = if (words.size > 1) {
+                    words.dropLast(1).joinToString(" ")
+                } else {
+                    ""
+                }
+
+                binding.sentancetxt.text = newSentence
+
+                android.widget.Toast.makeText(
+                    this,
+                    "Last word deleted",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        // End of erase button feature
 
         if (allPermissionsGranted()) {
             startCamera()
@@ -50,6 +83,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
 
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
+
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -152,25 +186,49 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         }
     }
 
-    companion object {
-        private const val TAG = "Camera"
-        private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS = mutableListOf (
-            Manifest.permission.CAMERA
-        ).toTypedArray()
-    }
-
     override fun onEmptyDetect() {
-        binding.overlay.invalidate()
+        runOnUiThread {
+            sentenceHoldWord = null
+            sentenceHoldStartMs = 0L
+            binding.wordtxt.text = ""
+            binding.overlay.invalidate()
+        }
     }
 
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
+        val word = boundingBoxes.maxBy { it.cnf }.clsName
         runOnUiThread {
             binding.inferenceTime.text = "${inferenceTime}ms"
+            binding.wordtxt.text = word
+
+            val now = SystemClock.uptimeMillis()
+            if (word != sentenceHoldWord) {
+                sentenceHoldWord = word
+                sentenceHoldStartMs = now
+            } else if (now - sentenceHoldStartMs >= HOLD_MS_FOR_SENTENCE) {
+                val cur = binding.sentancetxt.text?.toString().orEmpty()
+                binding.sentancetxt.text =
+                    if (cur.isEmpty()) word else "$cur $word"
+                sentenceHoldWord = null
+                sentenceHoldStartMs = 0L
+            }
+
             binding.overlay.apply {
                 setResults(boundingBoxes)
                 invalidate()
             }
         }
     }
+
+    companion object {
+        private const val TAG = "Camera"
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private const val HOLD_MS_FOR_SENTENCE = 3000L
+        private val REQUIRED_PERMISSIONS = mutableListOf(
+            Manifest.permission.CAMERA
+        ).toTypedArray()
+        //end of everything. Dont you dare touch anuthing above this
+
+    }
+
 }
