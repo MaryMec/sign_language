@@ -5,12 +5,14 @@ local.properties
 *.iml
 .idea/
 .DS_Store
-*.apk
-*.aar
-captures/
-.externalNativeBuild/
+
 # Android Studio
 *.log
-navigation/
+captures/
+.externalNativeBuild/
 .kotlin/
 *.hprof
+
+# APK files
+*.apk
+*.aar
